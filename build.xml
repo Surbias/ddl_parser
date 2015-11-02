@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<project name="DDLParser" default="run" basedir=".">
+    <description>Ant builder for the project</description>
+
+    <property file="build.properties" />
+    <path id="cp.cdc">
+        <fileset dir="${lib.dir}">
+            <include name="**/*.jar" />
+        </fileset>
+    </path>
+
+    <!-- Initialization -->
+    <target name="init" description="Prepare needed directories.">
+        <mkdir dir="${build.dir}" />
+        <mkdir dir="${classes.dir}" />
+        <mkdir dir="${jar.dir}" />
+        <mkdir dir="${dist.dir}" />
+        <mkdir dir="${lib.dir}" />
+        <mkdir dir="${bin.dir}" />
+    </target>
+
+    <!-- Has proper lib logic -->
+    <target name="check.dir">
+        <fileset dir="${cdc.home}" id="fileset"/>
+        <pathconvert refid="fileset" property="dir.contains-files" setonempty="false"/>
+    </target>
+
+    <!-- Cleanup -->
+    <target name="clean" description="Remove all files created by the build/test process.">
+        <delete dir="${classes.dir}" />
+        <delete dir="${dist.dir}" />
+        <delete dir="${bin.dir}" />
+    </target>
+
+    <!-- Compile application -->
+    <target name="compile-true"
+            depends="init, check.dir"
+            if="dir.contains-files">
+        <mkdir dir="${classes.dir}"/>
+        <javac srcdir="${src.dir}"
+               destdir="${bin.dir}"
+               debug="true"
+               includeantruntime="no">
+            <classpath>
+                <path refid="cp.cdc" />
+            </classpath>
+            <!-- <classpath refid="classpath" /> -->
+        </javac>
+    </target>
+
+    <target name="compile-false"
+            depends="check.dir"
+            unless="dir.contains-files">
+        <echo message="Library at ${cdc.home} is empty. Make sure to request it!" />
+    </target>
+
+    <target name="compile"
+            depends="compile-true ,compile-false"
+            if="dir.contains-files">
+    </target>
+
+    <!-- Java Archive -->
+    <target name="jar" depends="compile">
+        <delete dir="${jar.dir}"/>
+        <mkdir dir="${jar.dir}"/>
+        <jar destfile="${jar.dir}/${app.name}-${app.version}.jar" basedir="${classes.dir}">
+            <manifest>
+                <attribute name="Class-Path" value="${lib.dir}"/>
+                <attribute name="Main-Class" value="${main.class}"/>
+            </manifest>
+            <zipgroupfileset  dir="${lib.dir}"/>
+        </jar>
+    </target>
+
+    <!-- Run application -->
+    <target name="run" depends="jar">
+        <java jar="${jar.dir}/${app.name}-${app.version}.jar"
+              fork="true">
+        </java>
+    </target>
+</project>
