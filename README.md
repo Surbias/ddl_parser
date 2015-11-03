@@ -114,7 +114,7 @@ Afterwards open up the terminal and go to the project folder and build the proje
 
 ```terminal
 > cd C:\dev\ddl_parser
-> ant compile
+> ant
 Buildfile: C:\dev\ddl_parser\build.xml
 
 init:
@@ -157,11 +157,11 @@ Total time: 0 seconds
 If the libraries configuration is wrong in some way (no directory found or files non-exists), the ant compile will echo out one of the following errors.
 
 ```terminal
-> ant compile
+> ant
 BUILD FAILED
 C:\dev\ddl_parser\build.xml:24: c:\cdc\lib does not exist.
 
-> ant compile
+> ant
 compile-false:
      [echo] Library at c:\cdc\lib is empty. Please request it to the developers.
 ```
