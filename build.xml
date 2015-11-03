@@ -9,6 +9,12 @@
         </fileset>
     </path>
 
+    <path id="commons">
+        <fileset dir="${apache.commons}">
+            <include name="**/*.jar" />
+        </fileset>
+    </path>
+
     <!-- Initialization -->
     <target name="init" description="Prepare needed directories.">
         <mkdir dir="${build.dir}" />
@@ -20,8 +26,10 @@
 
     <!-- Has proper lib logic -->
     <target name="check.dir">
-        <fileset dir="${cdc.home}" id="fileset"/>
-        <pathconvert refid="fileset" property="dir.contains-files" setonempty="false"/>
+        <fileset dir="${cdc.home}" id="cdc.home"/>
+        <fileset dir="${apache.commons}" id="apache.commons"/>
+        <pathconvert refid="cdc.home" property="dir.contains-files" setonempty="false"/>
+        <pathconvert refid="apache.commons" property="dir.contains-files" setonempty="false"/>
     </target>
 
     <!-- Cleanup -->
@@ -36,7 +44,7 @@
     <target name="compile-true"
             depends="clean, init, check.dir"
             if="dir.contains-files">
-        <echo message="Found ${cdc.home}. Getting jars." />
+        <echo message="Found ${cdc.home} and ${apache.commons}.Loading libraries..." />
         <javac srcdir="${src.dir}"
                destdir="${bin.dir}"
                nowarn="true"
@@ -44,15 +52,15 @@
                includeantruntime="no">
             <classpath>
                 <path refid="cp.cdc" />
+                <path refid="commons" />
             </classpath>
-            <!-- <classpath refid="classpath" /> -->
         </javac>
     </target>
 
     <target name="compile-false"
             depends="check.dir"
             unless="dir.contains-files">
-        <echo message="Library at ${cdc.home} is empty. Please request it to the developers." />
+        <echo message="Library at ${cdc.home} or ${apache.commons} is empty. Please request it to the developers." />
     </target>
 
     <target name="compile"

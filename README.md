@@ -105,10 +105,11 @@ This project supports build automation with [Ant](http://ant.apache.org/). To us
 
 Once you have setup Ant. You need to ask the developers for the libraries (and samples) necessary to run and test the scripts. These libraries cannot be posted here due to proprietary issues.
 
-You can setup the place where the script will load the libraries from. For that simply go to the build.properties file and change the following property with the desired path.
+You can setup the place where the script will load the cdc library and the usual java libraries from. For that simply go to the build.properties file and change the following properties with the desired paths.
 
 ```
 cdc.home=c:\\cdc\\lib # change to your desired path
+apache.commons=c:\\cdc\\apache_commons
 ```
 Afterwards open up the terminal and go to the project folder and build the project through Ant.
 
