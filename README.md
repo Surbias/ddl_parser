@@ -100,6 +100,72 @@ This will render 3 class files which can then be deployed on the CDC target engi
 
 (TODO: ANT BUILD)
 
+## [Alternative] Compilation automation with Ant
+This project supports build automation with [Ant](http://ant.apache.org/). To use configure build automation you must [download](http://ant.apache.org/bindownload.cgi) and [configure](http://ant.apache.org/manual/index.html) Ant on your machine.
+
+Once you have setup Ant. You need to ask the developers for the libraries (and samples) necessary to run and test the scripts. These libraries cannot be posted here due to proprietary issues.
+
+You can setup the place where the script will load the libraries from. For that simply go to the build.properties file and change the following property with the desired path.
+
+```
+cdc.home=c:\\cdc\\lib # change to your desired path
+```
+Afterwards open up the terminal and go to the project folder and build the project through Ant.
+
+```terminal
+> cd C:\dev\ddl_parser
+> ant compile
+Buildfile: C:\dev\ddl_parser\build.xml
+
+init:
+    [mkdir] Created dir: C:\dev\ddl_parser\build
+    [mkdir] Created dir: C:\dev\ddl_parser\build\classes
+    [mkdir] Created dir: C:\dev\ddl_parser\build\jar
+    [mkdir] Created dir: C:\dev\ddl_parser\dist
+    [mkdir] Created dir: C:\dev\ddl_parser\bin
+
+check.dir:
+
+compile-true:
+     [echo] Found c:\cdc\lib. Getting jars.
+    [javac] Compiling 5 source files to C:\dev\ddl_parser\bin
+
+compile-false:
+
+compile:
+
+BUILD SUCCESSFUL
+Total time: 4 seconds
+```
+
+You can also clean the .class files from the project if you so desire.
+
+```terminal
+> ant clean
+Buildfile: C:\dev\ddl_parser\build.xml
+
+clean:
+   [delete] Deleting directory C:\dev\ddl_parser\build\classes
+   [delete] Deleting directory C:\dev\ddl_parser\dist
+   [delete] Deleting directory C:\dev\ddl_parser\bin
+   [delete] Deleting directory C:\dev\ddl_parser\build
+
+BUILD SUCCESSFUL
+Total time: 0 seconds
+```
+
+If the libraries configuration is wrong in some way (no directory found or files non-exists), the ant compile will echo out one of the following errors.
+
+```terminal
+> ant compile
+BUILD FAILED
+C:\dev\ddl_parser\build.xml:24: c:\cdc\lib does not exist.
+
+> ant compile
+compile-false:
+     [echo] Library at c:\cdc\lib is empty. Please request it to the developers.
+```
+
 ## Implementation instructions
 Implementing the user exit must be done through the following steps:
 

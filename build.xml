@@ -4,7 +4,7 @@
 
     <property file="build.properties" />
     <path id="cp.cdc">
-        <fileset dir="${lib.dir}">
+        <fileset dir="${cdc.home}">
             <include name="**/*.jar" />
         </fileset>
     </path>
@@ -15,7 +15,6 @@
         <mkdir dir="${classes.dir}" />
         <mkdir dir="${jar.dir}" />
         <mkdir dir="${dist.dir}" />
-        <mkdir dir="${lib.dir}" />
         <mkdir dir="${bin.dir}" />
     </target>
 
@@ -30,15 +29,17 @@
         <delete dir="${classes.dir}" />
         <delete dir="${dist.dir}" />
         <delete dir="${bin.dir}" />
+        <delete dir="${build.dir}" />
     </target>
 
     <!-- Compile application -->
     <target name="compile-true"
             depends="init, check.dir"
             if="dir.contains-files">
-        <mkdir dir="${classes.dir}"/>
+        <echo message="Found ${cdc.home}. Getting jars." />
         <javac srcdir="${src.dir}"
                destdir="${bin.dir}"
+               nowarn="true"
                debug="true"
                includeantruntime="no">
             <classpath>
@@ -51,7 +52,7 @@
     <target name="compile-false"
             depends="check.dir"
             unless="dir.contains-files">
-        <echo message="Library at ${cdc.home} is empty. Make sure to request it!" />
+        <echo message="Library at ${cdc.home} is empty. Please request it to the developers." />
     </target>
 
     <target name="compile"
@@ -65,10 +66,11 @@
         <mkdir dir="${jar.dir}"/>
         <jar destfile="${jar.dir}/${app.name}-${app.version}.jar" basedir="${classes.dir}">
             <manifest>
-                <attribute name="Class-Path" value="${lib.dir}"/>
-                <attribute name="Main-Class" value="${main.class}"/>
+                <classpath>
+                    <path refid="cp.cdc" />
+                </classpath>
             </manifest>
-            <zipgroupfileset  dir="${lib.dir}"/>
+            <zipgroupfileset  dir="${cdc.home}"/>
         </jar>
     </target>
 
