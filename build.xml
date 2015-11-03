@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <project name="DDLParser" default="compile" basedir=".">
-    <description>Ant builder for the project</description>
+    <description>Ant builder for the DDL Parser project</description>
 
     <property file="build.properties" />
     <path id="cp.cdc">
