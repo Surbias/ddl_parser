@@ -206,9 +206,9 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 				modifiedStatement = removeCHECKConstraint(modifiedStatement);
 				modifiedStatement = removeCHECKConstraintWithoutEnable(modifiedStatement);
 
-
-				for(Pattern removeConstraint : settings.removeOperations){
-					modifiedStatement = removeConstraint(modifiedStatement, removeConstraint);
+				for (Pattern removeConstraint : settings.removeOperations) {
+					modifiedStatement = removeConstraint(modifiedStatement,
+							removeConstraint);
 				}
 
 				modifiedStatement = replaceVarchar2(modifiedStatement);
@@ -239,16 +239,13 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 	}
 
 	/**
-	 * Removes constraints based on the following use cases:
-	 * 	-> supplemental log clauses
-	 * 	-> TABLESPACE("_$deleted$xxxx")
-	 * 	-> foreign key constraints
+	 * Removes constraints based on the following use cases: -> supplemental log
+	 * clauses -> TABLESPACE("_$deleted$xxxx") -> foreign key constraints
 	 */
-	private String removeConstraint(String statement, Pattern pattern){
+	private String removeConstraint(String statement, Pattern pattern) {
 		String modifiedStatement = statement;
 		if (statement != null) {
-			Matcher supplementalLogMatcher = pattern
-					.matcher(statement);
+			Matcher supplementalLogMatcher = pattern.matcher(statement);
 			// Log all the substrings that will be removed
 			while (supplementalLogMatcher.find()) {
 				trace.write("Supplemental log clause will be removed: "
@@ -265,7 +262,8 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 	private String replaceVarchar2(String statement) {
 		String modifiedStatement = statement;
 		if (settings.replaceVarchar2 && statement != null) {
-			Matcher varchar2TypeMatcher = settings.varchar2Type.matcher(statement);
+			Matcher varchar2TypeMatcher = settings.varchar2Type
+					.matcher(statement);
 			StringBuffer modifiedStatementBuffer = new StringBuffer();
 			// Log all the column types that will be replaced
 			while (varchar2TypeMatcher.find()) {
@@ -432,7 +430,8 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 			String tableName) {
 		String modifiedStatement = statement;
 		if (statement != null) {
-			Matcher uniqueIndexMatcher = settings.createUniqueIndex.matcher(statement);
+			Matcher uniqueIndexMatcher = settings.createUniqueIndex
+					.matcher(statement);
 			if (uniqueIndexMatcher.find() && pkConstraintUsingIndex) {
 				trace.write("CREATE UNIQUE INDEX found but CREATE TABLE already created unique index, statement will be suppressed: "
 						+ statement);
@@ -451,16 +450,17 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 			String tableName) {
 		String modifiedStatement = statement;
 		if (modifiedStatement != null) {
-			Matcher createTableMatcher = settings.createTable.matcher(statement);
+			Matcher createTableMatcher = settings.createTable
+					.matcher(statement);
 			if (createTableMatcher.find()) {
 				trace.write("CREATE TABLE found, will execute stored procedure: "
 						+ statement);
 				modifiedStatement = "CALL " + settings.cdcDBUser
-						+ ".SP_CREATE_TABLE('" + tableSchema + "','"
-						+ tableName + "','" + statement + "')";
+						+ ".SP_CREATE_TABLE('" + settings.cdcDBUser + "','"
+						+ tableSchema + "','" + tableName + "','" + statement
+						+ "')";
 			}
 		}
 		return modifiedStatement;
 	}
-
 }
