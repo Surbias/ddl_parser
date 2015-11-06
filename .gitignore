@@ -104,3 +104,6 @@ local.properties
 
 # TeXlipse plugin
 .texlipse
+
+# Log files from local testing
+log/
