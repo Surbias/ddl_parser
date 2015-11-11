@@ -26,6 +26,8 @@ Change log
             can be used for example to let CDC continue after a DDL for a certain table
 2015-10-13	Suppress statement CREATE BITMAP INDEX
 			Remove CONSTRAINT FOREIGN KEY ON DELETE SET NULL clauses
+2015-11-08  Externalized all regular expressions in properties file
+            Added support for statements to be executed after a create table (create table is done by stored procedure)
 
 Description
 -----------
