@@ -43,6 +43,7 @@ public class UETrace {
 	 */
 	public void writeAlways(String message) {
 		// Piggyback on the CDC logging facility
+		System.out.println(message);
 		Trace.traceAlways(message);
 		return;
 	}
