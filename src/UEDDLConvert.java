@@ -27,6 +27,8 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 	private String sourceSystemID;
 	private boolean pkConstraintUsingIndex = false;
 
+	private String postCreateTableStatement = "";
+
 	/**
 	 * Generic init method to allow tester class to work
 	 */
@@ -79,6 +81,10 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 		String[] ddlStatementsArray = event.getDdlStatements();
 		String[] modifiedDdlStatementsArray = event.getDdlStatements();
 
+		// Statement that will replace one of the suppressed statements if there
+		// is space
+		postCreateTableStatement = "";
+
 		try {
 			for (int i = 0; i < ddlStatementsArray.length; i++) {
 				String commitTimestamp = event.getCommitTimeStamp().toString();
@@ -87,13 +93,26 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 						event.getDdlSchema(), event.getDdlTableSchema(),
 						event.getDdlTableName());
 				// If the transformed DDL statement is null, suppress operation
+				// If there is a post-create table statement, use that
 				if (modifiedDdlStatementsArray[i] == null) {
-					modifiedDdlStatementsArray[i] = NO_OPERATION;
+					if (!postCreateTableStatement.isEmpty()) {
+						event.logEvent("Inserted statement: "
+								+ postCreateTableStatement);
+						modifiedDdlStatementsArray[i] = postCreateTableStatement;
+						postCreateTableStatement = "";
+					} else {
+						modifiedDdlStatementsArray[i] = NO_OPERATION;
+					}
 				} else {
 					event.logEvent("Modified statement: "
 							+ modifiedDdlStatementsArray[i]);
 				}
 			}
+			// If there was no empty space for the post-create table statement,
+			// log event
+			if (!postCreateTableStatement.isEmpty())
+				event.logEvent("No space for post create table statement: "
+						+ postCreateTableStatement);
 			// If instructed to apply the modified statements, invoke the CDC
 			// method
 			if (settings.applyModifiedStatements) {
@@ -276,12 +295,13 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 		String modifiedStatement = statement;
 		if (statement != null) {
 			for (Pattern suppressedClause : settings.suppressedClauses) {
-				Matcher scMatcher = suppressedClause.matcher(statement);
+				Matcher scMatcher = suppressedClause.matcher(modifiedStatement);
 				// First report all clauses that will be suppressed
 				while (scMatcher.find()) {
 					trace.write("Clause will be removed from statement: "
 							+ scMatcher.group());
 				}
+				scMatcher.reset();
 				modifiedStatement = scMatcher.replaceAll("");
 			}
 		}
@@ -464,14 +484,11 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 			Matcher createTableMatcher = settings.createTable
 					.matcher(statement);
 			if (createTableMatcher.find()) {
-				trace.write("CREATE TABLE found, will be executed through stored procedure SP_CREATE_TABLE");
-				// Replace any quotes in the CREATE TABLE string so that they
-				// are interpreted correctly
-				modifiedStatement = modifiedStatement.replaceAll("'", "'''");
-				modifiedStatement = "CALL " + settings.cdcDBUser
-						+ ".SP_CREATE_TABLE('" + settings.cdcDBUser + "','"
-						+ tableSchema + "','" + tableName + "','"
-						+ modifiedStatement + "')";
+				trace.write("CREATE TABLE found, post-create statements will be executed through stored "
+						+ "procedure SP_POST_CREATE_TABLE");
+				postCreateTableStatement = "CALL " + settings.cdcDBUser
+						+ ".SP_POST_CREATE_TABLE('" + settings.cdcDBUser
+						+ "','" + tableSchema + "','" + tableName + "')";
 			}
 		}
 		return modifiedStatement;
