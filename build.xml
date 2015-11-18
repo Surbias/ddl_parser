@@ -47,6 +47,8 @@
         <echo message="Found ${cdc.home} and ${apache.commons}.Loading libraries..." />
         <javac srcdir="${src.dir}"
                destdir="${bin.dir}"
+               source="1.6"
+               target="1.6"
                nowarn="true"
                debug="true"
                includeantruntime="no">
