@@ -14,214 +14,182 @@ import java.util.regex.Pattern;
 
 public class UEDDLConvertSettings {
 
-    UETrace trace;
+	UETrace trace;
 
-    String alterTableLogFileDirectory;
-    boolean applyModifiedStatements;
-    boolean suppressAllStatements;
-    private String suppressTables;
-    public List<String> suppressedTablesList = new ArrayList<String>();
-    boolean replaceVarchar2;
-    String cdcDBUser;
-    boolean debug;
+	String ddlStatementsLogFileDirectory;
+	boolean applyModifiedStatements;
+	boolean suppressAllStatements;
+	private String suppressTables;
+	public List<String> suppressedTablesList = new ArrayList<String>();
+	boolean replaceVarchar2;
+	String cdcDBUser;
+	boolean debug;
 
-    // regex patterns
+	// Individual regex patterns
+	Pattern createTable;
+	Pattern createTableConstraintCheckNoEnable;
+	Pattern createTableConstraintPKUsingIndex;
 
-    Pattern createTable;
-    Pattern createTableConstraintFK;
-    Pattern createTableConstraintCheck;
-    Pattern createTableConstraintCheckNoEnable;
-    Pattern createTableConstraintPKUsingIndex;
-    Pattern createTableSupplementalLog;
-    Pattern createTableDeletedTablespace;
+	Pattern varchar2Type;
+	Pattern createUniqueIndex;
 
-    Pattern varchar2Type;
+	// Grouped regex patterns
+	ArrayList<Pattern> suppressedClauses = new ArrayList<Pattern>();
+	ArrayList<Pattern> executeIfExistsOperations = new ArrayList<Pattern>();
+	ArrayList<Pattern> suppressedStatements = new ArrayList<Pattern>();
+	ArrayList<String> replacedStrings = new ArrayList<String>();
 
-    Pattern alterTableAddConstraintFK;
-    Pattern alterTableAddConstraintCheck;
-    Pattern alterTableShrinkSpace;
+	public UEDDLConvertSettings(String propertiesFileName) throws Exception {
+		trace = new UETrace();
+		String currentDirectory = System.getProperty("user.dir")
+				+ File.separator;
 
-    Pattern dropTable;
+		CompositeConfiguration config = new CompositeConfiguration();
+		config.addConfiguration(new SystemConfiguration());
+		config.addConfiguration(new PropertiesConfiguration(currentDirectory
+				+ propertiesFileName));
 
-    Pattern createIndex;
-    Pattern createBitmapIndex;
-    Pattern createUniqueIndex;
+		trace.writeAlways("Getting UEDDLConvert.properties");
 
-    Pattern alterIndex;
-    Pattern alterIndexShrinkSpace;
+		debug = config.getBoolean("debug", false);
+		applyModifiedStatements = config.getBoolean("applyModifiedStatements",
+				true);
+		suppressAllStatements = config.getBoolean("suppressAllStatements",
+				false);
 
-    Pattern dropIndex;
+		suppressTables = config.getString("suppressTables", "");
+		// Convert suppressedTables to list of suppressed tables
+		if (!suppressTables.isEmpty()) {
+			String[] tables = suppressTables.split(";", -1);
+			for (String tableName : tables) {
+				if (!tableName.isEmpty())
+					suppressedTablesList.add(tableName);
+			}
+		}
 
-    Pattern grantOnTo;
+		replaceVarchar2 = config.getBoolean("replaceVarchar2", false);
 
-    // Regex Operations
-    Pattern[] suppressedOperations;
-    Pattern[] executeIfExistsOperations;
-    Pattern[] removeOperations;
+		ddlStatementsLogFileDirectory = config.getString(
+				"ddlStatementsLogFileDirectory", "log");
 
-    public UEDDLConvertSettings(String propertiesFileName) throws Exception {
-        trace = new UETrace();
-        String currentDirectory = System.getProperty("user.dir")
-                + File.separator;
+		cdcDBUser = config.getString("cdcDBUser");
 
-        CompositeConfiguration config = new CompositeConfiguration();
-        config.addConfiguration(new SystemConfiguration());
-        config.addConfiguration(
-                new PropertiesConfiguration(currentDirectory + propertiesFileName)
-        );
+		createTable = Pattern.compile(config.getString("createTable"),
+				Pattern.CASE_INSENSITIVE);
 
-        trace.writeAlways("Getting UEDDLConvert.properties");
+		createTableConstraintCheckNoEnable = Pattern.compile(
+				config.getString("createTableConstraintCheckNoEnable"),
+				Pattern.CASE_INSENSITIVE);
 
-        //Boolean.parseBoolean(properties.getProperty("debug", "false"));
-        debug = config.getBoolean("debug", false);
-        // Boolean.parseBoolean(properties.getProperty("applyModifiedStatements", "true"));
-        applyModifiedStatements = config.getBoolean("applyModifiedStatements", true);
+		createTableConstraintPKUsingIndex = Pattern.compile(
+				config.getString("createTableConstraintPKUsingIndex"),
+				Pattern.CASE_INSENSITIVE + Pattern.DOTALL);
 
-        // Boolean.parseBoolean(properties.getProperty("suppressAllStatements", "false"));
-        suppressAllStatements = config.getBoolean("suppressAllStatements", false);
+		varchar2Type = Pattern.compile(config.getString("varchar2Type"),
+				Pattern.CASE_INSENSITIVE);
 
-        //properties.getProperty("suppressTables", "");
-        suppressTables = config.getString("suppressTables", "");
+		createUniqueIndex = Pattern
+				.compile(config.getString("createUniqueIndex"),
+						Pattern.CASE_INSENSITIVE);
 
-        // Convert suppressedTables to list of suppressed tables
-        if (!suppressTables.isEmpty()) {
-            String[] tables = suppressTables.split(";", -1);
-            for (String tableName : tables) {
-                if (!tableName.isEmpty())
-                    suppressedTablesList.add(tableName);
-            }
-        }
+		// The statements included in this collection are fully suppressed
+		String[] suppressedStatementsProperties = config.getString(
+				"suppressedStatements").split(";");
+		for (String suppressedStatementProperty : suppressedStatementsProperties) {
+			suppressedStatements.add(Pattern.compile(
+					config.getString(suppressedStatementProperty),
+					Pattern.CASE_INSENSITIVE + Pattern.DOTALL));
+		}
 
-        replaceVarchar2 = config.getBoolean("replaceVarchar2", false);
+		// The clauses included in this collection are suppressed
+		String[] suppressedClausesProperties = config.getString(
+				"suppressedClauses").split(";");
+		for (String suppressedClauseProperty : suppressedClausesProperties) {
+			suppressedClauses.add(Pattern.compile(
+					config.getString(suppressedClauseProperty),
+					Pattern.CASE_INSENSITIVE + Pattern.DOTALL));
+		}
 
-        alterTableLogFileDirectory = config.getString("alterTableLogFileDirectory", "log");
+		// The statements in this collection are only executed if the object
+		// exists
+		String[] executeIfExistsProperties = config
+				.getString("executeIfExists").split(";");
+		for (String executeIfExistsProperty : executeIfExistsProperties) {
+			executeIfExistsOperations.add(Pattern.compile(
+					config.getString(executeIfExistsProperty),
+					Pattern.CASE_INSENSITIVE + Pattern.DOTALL));
+		}
 
-        cdcDBUser = config.getString("cdcDBUser");
+		// The strings included in this collection are replaced by something
+		// else
+		String[] replacedStringsProperties = config
+				.getString("replacedStrings").split(";");
+		for (String replacedStringProperty : replacedStringsProperties) {
+			replacedStrings.add(config.getString(replacedStringProperty));
+		}
 
-        createTable = Pattern.compile(config.getString("createTable"),
-                Pattern.CASE_INSENSITIVE);
+		// Log all properties
+		logProperties(config);
 
-        createTableConstraintFK = Pattern.compile(config.getString("createTableConstraintFK"),
-                Pattern.CASE_INSENSITIVE + Pattern.DOTALL);
+	}
 
-        createTableConstraintCheck = Pattern.compile(config.getString("createTableConstraintCheck"),
-                Pattern.CASE_INSENSITIVE + Pattern.DOTALL);
+	private void logProperties(CompositeConfiguration config) {
+		log("applyModifiedStatements", applyModifiedStatements);
+		log("suppressAllStatements", suppressAllStatements);
+		log("suppressTables", suppressTables);
+		log("replaceVarchar2", replaceVarchar2);
+		log("cdcDBUser", cdcDBUser);
+		log("debug", debug);
 
-        createTableConstraintCheckNoEnable = Pattern.compile(config.getString("createTableConstraintCheckNoEnable"),
-                Pattern.CASE_INSENSITIVE);
+		log("createTable", createTable);
+		// log("createTableConstraintFK", createTableConstraintFK);
+		// log("createTableConstraintCheck", createTableConstraintCheck);
+		log("createTableConstraintCheckNoEnable",
+				createTableConstraintCheckNoEnable);
+		log("createTableConstraintPKUsingIndex",
+				createTableConstraintPKUsingIndex);
+		// log("createTableSupplementalLog", createTableSupplementalLog);
+		// log("createTableDeletedTablespace", createTableDeletedTablespace);
 
-        createTableConstraintPKUsingIndex = Pattern.compile(config.getString("createTableConstraintPKUsingIndex"),
-                Pattern.CASE_INSENSITIVE + Pattern.DOTALL);
+		log("varchar2Type", varchar2Type);
 
-        createTableSupplementalLog = Pattern.compile(config.getString("createTableSupplementalLog"),
-                Pattern.CASE_INSENSITIVE + Pattern.DOTALL);
+		// log("alterTableAddConstraintFK", alterTableAddConstraintFK);
+		// log("alterTableAddConstraintCheck", alterTableAddConstraintCheck);
+		// log("alterTableShrinkSpace", alterTableShrinkSpace);
 
-        createTableDeletedTablespace = Pattern.compile(config.getString("createTableDeletedTablespace"),
-                Pattern.CASE_INSENSITIVE);
+		// log("dropTable", dropTable);
 
-        varchar2Type = Pattern.compile(config.getString("varchar2Type"),
-                Pattern.CASE_INSENSITIVE);
+		// log("createIndex", createIndex);
+		// log("createBitmapIndex", createBitmapIndex);
+		log("createUniqueIndex", createUniqueIndex);
 
-        alterTableAddConstraintFK = Pattern.compile(config.getString("alterTableAddConstraintFK"),
-                Pattern.CASE_INSENSITIVE);
+		// log("alterIndex", alterIndex);
+		// log("alterIndexShrinkSpace", alterIndexShrinkSpace);
 
-        alterTableAddConstraintCheck = Pattern.compile(config.getString("alterTableAddConstraintCheck"),
-                Pattern.CASE_INSENSITIVE);
+		// log("dropIndex", dropIndex);
 
-        alterTableShrinkSpace = Pattern.compile(config.getString("alterTableShrinkSpace"),
-                Pattern.CASE_INSENSITIVE);
+		// log("grantOnTo", grantOnTo);
 
-        dropTable = Pattern.compile(config.getString("dropTable"),
-                Pattern.CASE_INSENSITIVE);
+		log("suppressedStatements", config.getString("suppressedStatements"));
+		for (Pattern suppressedStatement : suppressedStatements)
+			log("--", suppressedStatement);
+		log("suppressedClauses", config.getString("suppressedClauses"));
+		for (Pattern suppressedClause : suppressedClauses)
+			log("--", suppressedClause);
+		log("executeIfExists", config.getString("executeIfExists"));
+		for (Pattern executeIfExistsOperation : executeIfExistsOperations)
+			log("--", executeIfExistsOperation);
+		log("replacedStrings", config.getString("replacedStrings"));
+		for (String replacedString : replacedStrings)
+			log("--",
+					replacedString.split(";")[0] + " --> "
+							+ replacedString.split(";")[1]);
 
-        createIndex = Pattern.compile(config.getString("createIndex"),
-                Pattern.CASE_INSENSITIVE);
+	}
 
-        createBitmapIndex = Pattern.compile(config.getString("createBitmapIndex"),
-                Pattern.CASE_INSENSITIVE);
+	private void log(String propertyName, Object property) {
+		trace.writeAlways(String.format("%s: %s", propertyName,
+				property.toString()));
+	}
 
-        createUniqueIndex = Pattern.compile(config.getString("createUniqueIndex"),
-                Pattern.CASE_INSENSITIVE);
-
-        alterIndex = Pattern.compile(config.getString("alterIndex"),
-                Pattern.CASE_INSENSITIVE);
-
-        alterIndexShrinkSpace = Pattern.compile(config.getString("alterIndexShrinkSpace"),
-                Pattern.CASE_INSENSITIVE);
-
-        grantOnTo = Pattern.compile(config.getString("grantOnTo"),
-                Pattern.CASE_INSENSITIVE);
-
-        dropIndex = Pattern.compile(config.getString("dropIndex"),
-                Pattern.CASE_INSENSITIVE);
-
-        // Operations
-
-        // The operations included in this collection are fully suppressed
-        suppressedOperations = new Pattern[]{
-                alterTableAddConstraintFK,
-                alterTableAddConstraintCheck,
-                alterTableShrinkSpace,
-                createIndex,
-                createBitmapIndex,
-                alterIndexShrinkSpace,
-                grantOnTo
-        };
-
-        executeIfExistsOperations = new Pattern[]{
-                dropTable,
-                dropIndex,
-                alterIndex
-        };
-
-        removeOperations = new Pattern[]{
-                createTableConstraintFK,
-                createTableSupplementalLog,
-                createTableDeletedTablespace
-        };
-
-        logProperties();
-    }
-
-    private void logProperties(){
-        log("applyModifiedStatements", applyModifiedStatements);
-        log("suppressAllStatements", suppressAllStatements);
-        log("suppressTables", suppressTables);
-        log("replaceVarchar2", replaceVarchar2);
-        log("cdcDBUser", cdcDBUser);
-        log("debug", debug);
-
-        log("createTable", createTable);
-        log("createTableConstraintFK", createTableConstraintFK);
-        log("createTableConstraintCheck", createTableConstraintCheck);
-        log("createTableConstraintCheckNoEnable", createTableConstraintCheckNoEnable);
-        log("createTableConstraintPKUsingIndex", createTableConstraintPKUsingIndex);
-        log("createTableSupplementalLog", createTableSupplementalLog);
-        log("createTableDeletedTablespace", createTableDeletedTablespace);
-
-        log("varchar2Type", varchar2Type);
-
-        log("alterTableAddConstraintFK", alterTableAddConstraintFK);
-        log("alterTableAddConstraintCheck", alterTableAddConstraintCheck);
-        log("alterTableShrinkSpace", alterTableShrinkSpace);
-
-        log("dropTable", dropTable);
-
-        log("createIndex", createIndex);
-        log("createBitmapIndex", createBitmapIndex);
-        log("createUniqueIndex", createUniqueIndex);
-
-        log("alterIndex", alterIndex);
-        log("alterIndexShrinkSpace", alterIndexShrinkSpace);
-
-        log("dropIndex", dropIndex);
-
-        log("grantOnTo", grantOnTo);
-    }
-
-    private void log(String propertyName, Object property){
-        trace.writeAlways(
-                String.format("%s: %s",
-                        propertyName, property.toString()));
-    }
 }
