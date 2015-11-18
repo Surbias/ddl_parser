@@ -38,7 +38,7 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 
 			trace = new UETrace();
 			trace.init(settings.debug);
-			trace.writeAlways("subscription user exit init section started");
+			trace.writeAlways("Subscription user exit initialization");
 		} catch (Exception e) {
 			trace.writeAlways(String.format(
 					".properties configuration error.\nError: %s",
@@ -139,8 +139,9 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 				if (sourceSystemID == null)
 					sourceSystemID = "UEDDLConvert";
 				String fileDate = dateFormatFile.format(new Date());
-				filePath = settings.alterTableLogFileDirectory + File.separator
-						+ sourceSystemID + "_DDL_" + fileDate + ".log";
+				filePath = settings.ddlStatementsLogFileDirectory
+						+ File.separator + sourceSystemID + "_DDL_" + fileDate
+						+ ".log";
 				try {
 					trace.write("Writing new log file: " + filePath);
 					logWriter = new PrintWriter(filePath);
@@ -200,20 +201,33 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 			if (!settings.suppressedTablesList.contains(qualifiedTable)) {
 				// Process a pipeline of DDL transformations on the current
 				// statement
-				isCreateTablePrimaryKeyUsingIndex(modifiedStatement);
-				modifiedStatement = suppressOperation(modifiedStatement);
 
-				modifiedStatement = removeCHECKConstraint(modifiedStatement);
+				// First collect information about the statement (to be used
+				// later)
+				isCreateTablePrimaryKeyUsingIndex(modifiedStatement);
+
+				// Check if the statement must be fully suppressed
+				modifiedStatement = suppressStatements(modifiedStatement);
+
+				// Remove clauses that must be suppressed
+				modifiedStatement = suppressClauses(modifiedStatement);
+
+				// Suppress Check constraint clauses not terminated by enable
 				modifiedStatement = removeCHECKConstraintWithoutEnable(modifiedStatement);
 
-				for (Pattern removeConstraint : settings.removeOperations) {
-					modifiedStatement = removeConstraint(modifiedStatement,
-							removeConstraint);
-				}
+				// Replace strings indicated in the configuration
+				modifiedStatement = replaceStrings(modifiedStatement);
 
+				// Transform VARCHAR2(nn) to CHAR semantics
 				modifiedStatement = replaceVarchar2(modifiedStatement);
+
+				// Suppress the creation of a unique index if the create table
+				// already implicitly creates it
 				modifiedStatement = suppressUniqueIndex(modifiedStatement,
 						tableSchema, tableName);
+
+				// If the statement is a CREATE TABLE, execute through a stored
+				// procedure
 				modifiedStatement = executeCreateTable(modifiedStatement,
 						tableSchema, tableName);
 				// The executeDDLIfExists transformation should be the last one
@@ -239,19 +253,37 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 	}
 
 	/**
-	 * Removes constraints based on the following use cases: -> supplemental log
-	 * clauses -> TABLESPACE("_$deleted$xxxx") -> foreign key constraints
+	 * Suppresses any statements specified in the configuration
 	 */
-	private String removeConstraint(String statement, Pattern pattern) {
+	private String suppressStatements(String statement) {
 		String modifiedStatement = statement;
 		if (statement != null) {
-			Matcher supplementalLogMatcher = pattern.matcher(statement);
-			// Log all the substrings that will be removed
-			while (supplementalLogMatcher.find()) {
-				trace.write("Supplemental log clause will be removed: "
-						+ supplementalLogMatcher.group());
+			for (Pattern suppressedStatement : settings.suppressedStatements) {
+				Matcher ssMatcher = suppressedStatement.matcher(statement);
+				if (ssMatcher.find()) {
+					trace.write("Statement will be suppressed: " + statement);
+					modifiedStatement = null;
+				}
 			}
-			modifiedStatement = supplementalLogMatcher.replaceAll("");
+		}
+		return modifiedStatement;
+	}
+
+	/**
+	 * Suppresses any clauses specified in the configuration
+	 */
+	private String suppressClauses(String statement) {
+		String modifiedStatement = statement;
+		if (statement != null) {
+			for (Pattern suppressedClause : settings.suppressedClauses) {
+				Matcher scMatcher = suppressedClause.matcher(statement);
+				// First report all clauses that will be suppressed
+				while (scMatcher.find()) {
+					trace.write("Clause will be removed from statement: "
+							+ scMatcher.group());
+				}
+				modifiedStatement = scMatcher.replaceAll("");
+			}
 		}
 		return modifiedStatement;
 	}
@@ -267,7 +299,7 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 			StringBuffer modifiedStatementBuffer = new StringBuffer();
 			// Log all the column types that will be replaced
 			while (varchar2TypeMatcher.find()) {
-				trace.write("Type of column will be changed to VARCHAR2(nn CHAR): "
+				trace.write("Type of column will be changed to CHAR semantics: "
 						+ varchar2TypeMatcher.group());
 				varchar2TypeMatcher.appendReplacement(
 						modifiedStatementBuffer,
@@ -277,6 +309,30 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 			}
 			varchar2TypeMatcher.appendTail(modifiedStatementBuffer);
 			modifiedStatement = modifiedStatementBuffer.toString();
+		}
+		return modifiedStatement;
+	}
+
+	/**
+	 * Replace any strings specified in the configuration
+	 */
+	private String replaceStrings(String statement) {
+		String modifiedStatement = statement;
+		if (statement != null) {
+			for (String replacedString : settings.replacedStrings) {
+				String stringToReplace = replacedString.split(";")[0];
+				String stringReplacedWith = replacedString.split(";")[1];
+				Pattern stringToReplacePattern = Pattern.compile(
+						stringToReplace, Pattern.CASE_INSENSITIVE
+								+ Pattern.DOTALL);
+				Matcher rsMatcher = stringToReplacePattern.matcher(statement);
+				// First report all clauses that will be suppressed
+				while (rsMatcher.find()) {
+					trace.write("String will be replaced: " + rsMatcher.group()
+							+ " --> " + stringReplacedWith);
+				}
+				modifiedStatement = rsMatcher.replaceAll(stringReplacedWith);
+			}
 		}
 		return modifiedStatement;
 	}
@@ -309,32 +365,6 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 							+ "','" + objectSchema + "','" + objectName + "','"
 							+ statement + "')";
 				}
-			}
-		}
-		return modifiedStatement;
-	}
-
-	/**
-	 * Removes a CHECK constraint from the CREATE TABLE statement if the CHECK
-	 * constraint has the ENABLE clause
-	 */
-	private String removeCHECKConstraint(String statement) {
-		String modifiedStatement = statement;
-
-		if (statement != null) {
-
-			Matcher checkConstraintMatcher = settings.createTableConstraintCheck
-					.matcher(statement);
-
-			if (checkConstraintMatcher.find()) {
-				checkConstraintMatcher.reset();
-				while (checkConstraintMatcher.find()) {
-					trace.write("Check constraint clause will be removed: "
-							+ checkConstraintMatcher.group());
-				}
-				modifiedStatement = checkConstraintMatcher.replaceAll("");
-			} else {
-				modifiedStatement = removeCHECKConstraintWithoutEnable(modifiedStatement);
 			}
 		}
 		return modifiedStatement;
@@ -389,24 +419,6 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 	}
 
 	/**
-	 * This method checks if the operation should be suppressed and if so, it
-	 * returns null
-	 */
-	private String suppressOperation(String statement) {
-		String modifiedStatement = statement;
-		if (statement != null) {
-			for (Pattern suppressedOperation : settings.suppressedOperations) {
-				Matcher soMatcher = suppressedOperation.matcher(statement);
-				if (soMatcher.find()) {
-					trace.write("Statement will be suppressed: " + statement);
-					modifiedStatement = null;
-				}
-			}
-		}
-		return modifiedStatement;
-	}
-
-	/**
 	 * Checks if the statement is a CREATE TABLE with primary key constraint
 	 * using index If so, it sets variable pk... to true.
 	 */
@@ -415,8 +427,7 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 			Matcher uniqueIndexMatcher = settings.createTableConstraintPKUsingIndex
 					.matcher(statement);
 			if (uniqueIndexMatcher.find()) {
-				trace.write("CREATE TABLE with CONSTRAINT PRIMARY KEY USING INDEX found, unique indexes will be suppressed: "
-						+ statement);
+				trace.write("CREATE TABLE with CONSTRAINT PRIMARY KEY USING INDEX found, unique indexes will be suppressed");
 				pkConstraintUsingIndex = true;
 			}
 		}
@@ -453,12 +464,14 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 			Matcher createTableMatcher = settings.createTable
 					.matcher(statement);
 			if (createTableMatcher.find()) {
-				trace.write("CREATE TABLE found, will execute stored procedure: "
-						+ statement);
+				trace.write("CREATE TABLE found, will be executed through stored procedure SP_CREATE_TABLE");
+				// Replace any quotes in the CREATE TABLE string so that they
+				// are interpreted correctly
+				modifiedStatement = modifiedStatement.replaceAll("'", "'''");
 				modifiedStatement = "CALL " + settings.cdcDBUser
 						+ ".SP_CREATE_TABLE('" + settings.cdcDBUser + "','"
-						+ tableSchema + "','" + tableName + "','" + statement
-						+ "')";
+						+ tableSchema + "','" + tableName + "','"
+						+ modifiedStatement + "')";
 			}
 		}
 		return modifiedStatement;
