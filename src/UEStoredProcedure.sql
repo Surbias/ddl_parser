@@ -23,9 +23,8 @@ CREATE TABLE CREATE_TABLE_POST_DDL (TABLESCHEMA VARCHAR2(32), TABLENAME VARCHAR2
   DDLSTATEMENT VARCHAR2(4000), 
   CONSTRAINT CREATE_TABLE_POST_DDL_PK PRIMARY KEY (TABLESCHEMA, TABLENAME, EXECSEQ));
   
--- Stored procedure which will be invoked instead of a CREATE TABLE statement
--- The stored procedure first executes the original statement (after having gone through the transformation
--- pipeline) and then executes a sequence of DDL statements kept in the CREATE_TABLE_POST_DDL table in
+-- Stored procedure which will be invoked after a CREATE TABLE statement
+-- The stored procedure executes a sequence of DDL statements kept in the CREATE_TABLE_POST_DDL table in
 -- the CDC metadata schema
 CREATE OR REPLACE PROCEDURE SP_CREATE_TABLE(pCDC_SCHEMA VARCHAR, pTABLE_SCHEMA VARCHAR, pTABLE_NAME VARCHAR)
 AUTHID CURRENT_USER IS
