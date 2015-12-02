@@ -196,8 +196,8 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 	private String cleanDdlStatement(String ddlStatement) {
 		String cleanedStatement = ddlStatement;
 		if (cleanedStatement != null) {
-			cleanedStatement = ddlStatement.replaceAll("\\t", "");
-			cleanedStatement = ddlStatement.replaceAll("\\n", "");
+			cleanedStatement = cleanedStatement.replaceAll("\\t", " ");
+			cleanedStatement = cleanedStatement.replaceAll("\\n", "");
 		}
 		return cleanedStatement;
 	}
