@@ -10,8 +10,8 @@ import com.datamirror.ts.target.publication.userexit.UserExitException;
 
 public class UEDDLConvertFile {
 
-	public static final Pattern SQL_STATEMENT = Pattern.compile("([^;])+;\\s*",
-			Pattern.CASE_INSENSITIVE);
+	public static final Pattern SQL_STATEMENT = Pattern.compile(
+			"(([^;])+);\\s*", Pattern.CASE_INSENSITIVE);
 
 	UEDDLConvert convert;
 
@@ -38,7 +38,7 @@ public class UEDDLConvertFile {
 
 		log("Converting input file " + inputFile + " to " + outputFile);
 
-		// Read entire input file into a string  
+		// Read entire input file into a string
 		String inputSQLString = readFileToString(inputFile);
 		// log(inputSQLString);
 
@@ -48,14 +48,14 @@ public class UEDDLConvertFile {
 		int i = 1;
 		int j = 0;
 		while (sqlMatcher.find()) {
-			String originalStatement = sqlMatcher.group();
+			String originalStatement = sqlMatcher.group(1);
 			log("-- New statement --");
 			log("Original: " + originalStatement);
 			String convertedStatement = convert.modifyStatement(
 					originalStatement, "2015-09-27", "DUMMY", "DUMMY", "DUMMY");
 			log("Converted: " + convertedStatement);
 			if (convertedStatement != null) {
-				outputSQLString += convertedStatement;
+				outputSQLString += convertedStatement + ";\n";
 				j++;
 			}
 			i++;
