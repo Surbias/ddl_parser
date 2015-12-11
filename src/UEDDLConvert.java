@@ -116,10 +116,11 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 			// If instructed to apply the modified statements, invoke the CDC
 			// method
 			if (settings.applyModifiedStatements) {
+				trace.write("Modified DDL operations will be executed:");
 				event.setDdlStatement(modifiedDdlStatementsArray);
 			}
 		} catch (Exception e) {
-			trace.writeAlways(e.getMessage());
+			trace.writeAlways("Error occurred while processing modifications to DDL statements: "+e.getMessage());
 		}
 
 		// Return true to apply the DDL statement(s)
@@ -258,10 +259,12 @@ public class UEDDLConvert implements SubscriptionUserExitIF {
 						+ qualifiedTable
 						+ " will be suppressed because table is in suppressed tables list: "
 						+ originalStatement);
+				modifiedStatement = null;
 			}
 		} else {
 			trace.write("Statement will be suppressed because suppressAllStatements is true: "
 					+ originalStatement);
+			modifiedStatement = null;
 		}
 
 		// Log the statement and modified statement to the output file
